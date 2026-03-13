@@ -18,7 +18,8 @@ public static partial class Word
         // Disable AutoRecover to prevent "serious error" recovery dialogs
         word.Options.SaveInterval = 0;
 
-        var doc1 = Open(word, path1);
+        string tempPath1;
+        var doc1 = Open(word, path1, out tempPath1);
 
         // Get process from Word's window handle and assign to job
         var hwnd = (IntPtr) word.ActiveWindow.Hwnd;
@@ -26,9 +27,10 @@ public static partial class Word
         using var process = Process.GetProcessById(processId);
         AssignProcessToJobObject(job, process.Handle);
 
-        var doc2 = Open(word, path2);
+        string tempPath2;
+        var doc2 = Open(word, path2, out tempPath2);
 
-        var compare = LaunchCompare(word, doc1, doc2);
+        var compare = LaunchCompare(word, doc1, doc2, tempPath1, tempPath2);
 
         word.Visible = true;
 
@@ -50,7 +52,7 @@ public static partial class Word
         RestoreRibbon(wordType);
     }
 
-    internal static dynamic LaunchCompare(dynamic word, dynamic doc1, dynamic doc2)
+    internal static dynamic LaunchCompare(dynamic word, dynamic doc1, dynamic doc2, string tempPath1, string tempPath2)
     {
         // WdCompareDestination.wdCompareDestinationNew = 2
         // WdGranularity.wdGranularityWordLevel = 1
@@ -74,6 +76,9 @@ public static partial class Word
 
         doc1.Close(SaveChanges: false);
         doc2.Close(SaveChanges: false);
+
+        File.Delete(tempPath1);
+        File.Delete(tempPath2);
 
         // Mark as saved so Word won't prompt to save on close
         compare.Saved = true;
@@ -114,10 +119,14 @@ public static partial class Word
         }
     }
 
-    internal static dynamic Open(dynamic word, string path)
+    internal static dynamic Open(dynamic word, string path, out string tempFilePath)
     {
+        // Copy to a temp file so the original is never locked by Word
+        tempFilePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}{Path.GetExtension(path)}");
+        File.Copy(path, tempFilePath);
+
         var doc = word.Documents.Open(
-            path,
+            tempFilePath,
             ConfirmConversions: false,
             ReadOnly: true,
             AddToRecentFiles: false,
@@ -128,7 +137,7 @@ public static partial class Word
         return doc;
     }
 
-    static void HideNavigationPane(dynamic word) =>
+static void HideNavigationPane(dynamic word) =>
         word.ActiveWindow.DocumentMap = false;
 
     static void MinimizeRibbon(dynamic word)

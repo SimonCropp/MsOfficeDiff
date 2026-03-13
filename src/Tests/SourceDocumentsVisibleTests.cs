@@ -15,10 +15,19 @@ public class SourceDocumentsVisibleTests
             word.DisplayAlerts = 0;
             word.Options.SaveInterval = 0;
 
-            var doc1 = Word.Open(word, ProjectFiles.input_temp_docx.FullPath);
-            var doc2 = Word.Open(word, ProjectFiles.input_target_docx.FullPath);
+            string tmp1, tmp2;
+            var doc1 = Word.Open(word, ProjectFiles.input_temp_docx.FullPath, out tmp1);
+            var doc2 = Word.Open(word, ProjectFiles.input_target_docx.FullPath, out tmp2);
 
-            var compare = Word.LaunchCompare(word, doc1, doc2);
+            // Verify original files are not locked while open in Word
+            using (var fs = new FileStream(ProjectFiles.input_temp_docx.FullPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+            {
+            }
+            using (var fs = new FileStream(ProjectFiles.input_target_docx.FullPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+            {
+            }
+
+            var compare = Word.LaunchCompare(word, doc1, doc2, tmp1, tmp2);
 
             word.Visible = true;
 
