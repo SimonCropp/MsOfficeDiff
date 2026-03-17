@@ -10,8 +10,8 @@
     <File Path="global.json" />
     <File Path="mdsnippets.json" />
   </Folder>
-  <Project Path="MsWordDiff/MsWordDiff.csproj" />
   <Project Path="MsExcelDiff/MsExcelDiff.csproj" />
-  <Project Path="MsWordTests/MsWordTests.csproj" />
-  <Project Path="MsExcelTests/MsExcelTests.csproj" />
+  <Project Path="MsExcelDiff.Tests/MsExcelDiff.Tests.csproj" />
+  <Project Path="MsWordDiff/MsWordDiff.csproj" />
+  <Project Path="MsWordDiff.Tests/MsWordDiff.Tests.csproj" />
 </Solution>

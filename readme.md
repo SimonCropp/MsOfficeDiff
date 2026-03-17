@@ -4,7 +4,7 @@
 [![NuGet Status](https://img.shields.io/nuget/v/MsWordDiff.svg?label=MsWordDiff)](https://www.nuget.org/packages/MsWordDiff/)
 [![NuGet Status](https://img.shields.io/nuget/v/MsExcelDiff.svg?label=MsExcelDiff)](https://www.nuget.org/packages/MsExcelDiff/)
 
-Tools for comparing Microsoft Office documents.<!-- singleLineInclude: intro. path: /src/intro.include.md -->
+A .NET tool that compares two Word documents side by side using Microsoft Word's built-in document comparison feature.<!-- singleLineInclude: intro. path: /src/intro.include.md -->
 
  * **MsWordDiff** (`diffword`) — Compare two Word documents using Microsoft Word's built-in document comparison feature
  * **MsExcelDiff** (`diffexcel`) — Compare two Excel workbooks using Microsoft's Spreadsheet Compare
