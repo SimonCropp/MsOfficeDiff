@@ -4,6 +4,6 @@ public static class ModuleInitializer
     public static void InitializeOther()
     {
         VerifierSettings.InitializePlugins();
-        VerifierSettings.ScrubLinesContaining("ExcelTests v");
+        VerifierSettings.ScrubLinesContaining("MsExcelDiff.Tests v");
     }
 }
