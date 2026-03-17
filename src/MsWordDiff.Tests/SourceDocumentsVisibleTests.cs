@@ -9,7 +9,7 @@ public class SourceDocumentsVisibleTests
             Skip.Test("Microsoft Word is not installed");
         }
 
-        dynamic word = Activator.CreateInstance(wordType!)!;
+        dynamic word = Activator.CreateInstance(wordType)!;
         try
         {
             word.DisplayAlerts = 0;

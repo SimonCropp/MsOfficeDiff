@@ -3,6 +3,7 @@
 *.bin binary
 *.png binary
 *.docx binary
+*.xlsx binary
 
 src/Verify/EmptyFiles/* binary
 

@@ -1,9 +1,13 @@
-# <img src="/src/icon.png" height="30px"> MsWordDiff
+# <img src="/src/icon.png" height="30px"> MsOfficeDiff
 
-[![Build status](https://img.shields.io/appveyor/build/SimonCropp/MsWordDiff)](https://ci.appveyor.com/project/SimonCropp/MsWordDiff)
+[![Build status](https://img.shields.io/appveyor/build/SimonCropp/MsOfficeDiff)](https://ci.appveyor.com/project/SimonCropp/MsOfficeDiff)
 [![NuGet Status](https://img.shields.io/nuget/v/MsWordDiff.svg?label=MsWordDiff)](https://www.nuget.org/packages/MsWordDiff/)
+[![NuGet Status](https://img.shields.io/nuget/v/MsExcelDiff.svg?label=MsExcelDiff)](https://www.nuget.org/packages/MsExcelDiff/)
 
 A .NET tool that compares two Word documents side by side using Microsoft Word's built-in document comparison feature.<!-- singleLineInclude: intro. path: /src/intro.include.md -->
+
+ * **MsWordDiff** (`diffword`) — Compare two Word documents using Microsoft Word's built-in document comparison feature
+ * **MsExcelDiff** (`diffexcel`) — Compare two Excel workbooks using Microsoft's Spreadsheet Compare
 
 **See [Milestones](../../milestones?state=closed) for release notes.**
 
@@ -11,20 +15,23 @@ A .NET tool that compares two Word documents side by side using Microsoft Word's
 ## Requirements
 
  * Windows
- * Microsoft Word installed
  * .NET 10.0 or later
+ * Microsoft Word installed (for MsWordDiff)
+ * Microsoft Office Professional Plus / Microsoft 365 Apps for Enterprise (for MsExcelDiff — Spreadsheet Compare is only included in these editions)
 
 
 ## Installation
 
-Install as a global tool:
-
 ```
 dotnet tool install -g MsWordDiff
+dotnet tool install -g MsExcelDiff
 ```
 
-https://nuget.org/packages/MsWordDiff/
+ * https://nuget.org/packages/MsWordDiff/
+ * https://nuget.org/packages/MsExcelDiff/
 
+
+# MsWordDiff
 
 
 ## Usage
@@ -157,3 +164,70 @@ The tool uses COM automation to:
  2. Generate a comparison document using Word's `CompareDocuments` feature
  3. Display the comparison with tracked changes highlighting differences
  4. Automatically close Word when the parent process exits
+
+
+# MsExcelDiff
+
+
+## Usage
+
+```
+diffexcel <path1> <path2>
+```
+
+Where `<path1>` and `<path2>` are paths to the Excel workbooks to compare.
+
+Example:
+
+```
+diffexcel original.xlsx modified.xlsx
+```
+
+This will open Microsoft Spreadsheet Compare showing the differences between the two workbooks. The tool will wait until Spreadsheet Compare is closed before exiting.
+
+**Learn more:**
+- [Compare two versions of a workbook by using Spreadsheet Compare - Microsoft Support](https://support.microsoft.com/en-us/office/compare-two-versions-of-a-workbook-by-using-spreadsheet-compare-0e1627fd-ce14-4c33-9ab1-8ea82c6a5a7e)
+
+
+### Configuration
+
+
+#### View settings
+
+```
+diffexcel settings
+```
+
+This displays the settings file path and current settings.
+
+By default, settings are stored in:
+
+```
+%USERPROFILE%\.config\MsExcelDiff\settings.json
+```
+
+
+#### Configure Spreadsheet Compare path
+
+If Spreadsheet Compare is installed in a non-standard location, set the path:
+
+```
+diffexcel set-path "C:\Custom\Path\SPREADSHEETCOMPARE.EXE"
+```
+
+To clear the override and revert to auto-detection:
+
+```
+diffexcel set-path ""
+```
+
+
+## How It Works
+
+The tool:
+
+ 1. Writes both file paths to a temp file (one per line)
+ 2. Launches `SPREADSHEETCOMPARE.EXE` with the temp file as an argument
+ 3. For Click-to-Run Office installs, launches via `AppVLP.exe` (the App-V virtualization layer)
+ 4. Creates a Windows Job Object to terminate Spreadsheet Compare when the parent process exits
+ 5. Waits until Spreadsheet Compare is closed before exiting

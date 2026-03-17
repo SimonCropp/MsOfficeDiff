@@ -1,31 +1,20 @@
-<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <NoWarn>$(NoWarn);CA1416;NETSDK1137</NoWarn>
-    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>diffword</ToolCommandName>
-    <Description>A tool that compares two Word documents side by side using Microsoft Word.</Description>
+    <ToolCommandName>diffexcel</ToolCommandName>
+    <Description>A tool that compares two Excel workbooks using Microsoft Spreadsheet Compare.</Description>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <RollForward>LatestMajor</RollForward>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
-  <Target Name="RemoveTargetPlatformIdentifier" BeforeTargets="_CheckForInvalidWindowsDesktopTargetingConfiguration">
-    <PropertyGroup>
-      <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
-    </PropertyGroup>
-  </Target>
-  <Target Name="RestoreTargetPlatformIdentifier" AfterTargets="_CheckForInvalidWindowsDesktopTargetingConfiguration">
-    <PropertyGroup>
-      <TargetPlatformIdentifier></TargetPlatformIdentifier>
-    </PropertyGroup>
-  </Target>
   <ItemGroup>
-    <InternalsVisibleTo Include="MsWordDiff.Tests" />
+    <InternalsVisibleTo Include="MsExcelDiff.Tests" />
     <PackageReference Include="ProjectDefaults" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all" Condition="'$(CI)' == 'true'" />
     <PackageReference Include="Serilog" />

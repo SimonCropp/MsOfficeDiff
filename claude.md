@@ -59,13 +59,61 @@ The codebase is minimal with the following components:
 
 - **Logging.cs** - Serilog configuration writing to console and rolling file logs
 
-## Testing
+## MsExcelDiff Project
 
-Uses TUnit framework. Tests are marked `[Explicit]` as they require Word to be installed.
+MsExcelDiff is a separate .NET global tool (`diffexcel`) that compares two Excel workbooks using Microsoft's Spreadsheet Compare (`SPREADSHEETCOMPARE.EXE`), bundled with Office Professional Plus / Microsoft 365 Apps for Enterprise.
+
+### Architecture
+
+- **SpreadsheetCompare.cs** - Core functionality:
+  - Auto-detects `SPREADSHEETCOMPARE.EXE` in common Office install paths (Office16/Office15, x86/x64)
+  - Auto-detects `AppVLP.exe` (Office Click-to-Run virtualization launcher) and uses it when present
+  - Writes both file paths to a temp file (one per line) and passes it as argument
+  - `AppVLP.exe` is a launcher that exits immediately; the code finds the real `SPREADSHEETCOMPARE` process by name
+  - Creates Windows Job Object to terminate Spreadsheet Compare when parent exits
+  - Temp file is deleted by the exe on success; cleaned up on failure
+
+- **CompareCommand.cs** - Default CliFx command:
+  - Two positional `FileInfo` parameters for workbook paths
+  - Reads settings for optional custom exe path
+  - Invokes `SpreadsheetCompare.Launch()`
+
+- **Settings.cs** - Settings model with `SpreadsheetComparePath` property
+
+- **SettingsManager.cs** - Async settings persistence at `%USERPROFILE%\.config\MsExcelDiff\settings.json`
+
+- **SetSpreadsheetComparePathCommand.cs** - `set-path` command to configure custom exe location
+
+- **SettingsCommand.cs** - `settings` command to display current settings
+
+### Key Technical Detail: AppVLP.exe
+
+Click-to-Run Office installs require launching `SPREADSHEETCOMPARE.EXE` via `AppVLP.exe` (the App-V virtualization layer). The exe crashes (`0xC0000409`) if launched directly because it depends on the virtual filesystem/registry that `AppVLP.exe` provides. The start menu shortcut uses the same pattern:
+
+```
+AppVLP.exe "...\SPREADSHEETCOMPARE.EXE"
+```
+
+### Build & Install
 
 ```bash
-dotnet run --project src/Tests
+dotnet pack src/MsExcelDiff/MsExcelDiff.csproj
+dotnet tool install -g MsExcelDiff --add-source ./nugets
 ```
+
+## Testing
+
+Uses TUnit framework.
+
+```bash
+# Run MsWordDiff tests
+dotnet run --project src/Tests
+
+# Run MsExcelDiff tests
+dotnet run --project src/ExcelTests
+```
+
+MsWordDiff `[Explicit]` tests require Word to be installed. MsExcelDiff `[Explicit]` tests require Spreadsheet Compare (Office Professional Plus / Microsoft 365 Apps for Enterprise).
 
 ## Key Technical Details
 
