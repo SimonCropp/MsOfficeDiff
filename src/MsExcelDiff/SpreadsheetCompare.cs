@@ -8,6 +8,12 @@ public static partial class SpreadsheetCompare
         @"C:\Program Files (x86)\Microsoft Office\root\Office15\DCF\SPREADSHEETCOMPARE.EXE"
     ];
 
+    static readonly string[] appVlpPaths =
+    [
+        @"C:\Program Files\Microsoft Office\root\Client\AppVLP.exe",
+        @"C:\Program Files (x86)\Microsoft Office\root\Client\AppVLP.exe"
+    ];
+
     public static string? FindExecutable(string? settingsPath = null)
     {
         if (settingsPath != null && File.Exists(settingsPath))
@@ -16,6 +22,19 @@ public static partial class SpreadsheetCompare
         }
 
         foreach (var path in searchPaths)
+        {
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    static string? FindAppVlp()
+    {
+        foreach (var path in appVlpPaths)
         {
             if (File.Exists(path))
             {
@@ -36,36 +55,62 @@ public static partial class SpreadsheetCompare
                        "If installed in a custom location, use the 'set-path' command to configure the path.");
         }
 
+        var tempFile = Path.GetTempFileName();
+        File.WriteAllText(tempFile, $"{path1}{Environment.NewLine}{path2}");
+
+        // Snapshot existing PIDs before launch
+        var existingPids = GetSpreadsheetComparePids();
+
         var job = CreateJobToKillChildProcessesWhenThisProcessExits();
-        string? tempFile = null;
 
         try
         {
-            tempFile = Path.GetTempFileName();
-            File.WriteAllText(tempFile, $"{path1}{Environment.NewLine}{path2}");
+            // Click-to-Run Office installs require launching via AppVLP.exe (the App-V
+            // virtualization layer). SPREADSHEETCOMPARE.EXE crashes if launched directly.
+            var appVlp = FindAppVlp();
+            ProcessStartInfo startInfo;
 
-            var startInfo = new ProcessStartInfo
+            if (appVlp != null)
             {
-                FileName = exe,
-                Arguments = $"\"{tempFile}\"",
-                UseShellExecute = false
-            };
+                startInfo = new()
+                {
+                    FileName = appVlp,
+                    Arguments = $"\"{exe}\" {tempFile}",
+                    UseShellExecute = false
+                };
+            }
+            else
+            {
+                // Non-Click-to-Run install: launch directly
+                startInfo = new()
+                {
+                    FileName = exe,
+                    Arguments = tempFile,
+                    UseShellExecute = true
+                };
+            }
 
-            using var process = Process.Start(startInfo)
+            using var launcher = Process.Start(startInfo)
                 ?? throw new("Failed to start Spreadsheet Compare process");
 
-            AssignProcessToJobObject(job, process.Handle);
+            // AppVLP.exe is a launcher that exits after starting the real process.
+            // Find the actual SPREADSHEETCOMPARE process and wait on it.
+            launcher.WaitForExit();
 
-            process.WaitForExit();
+            using var uiProcess = WaitForProcess(existingPids);
 
-            // The launcher process exits quickly after spawning the real UI process.
-            // Wait for all processes in the job to exit (i.e., the user closes the UI).
-            WaitForJobToEmpty(job);
+            if (uiProcess == null)
+            {
+                throw new("Spreadsheet Compare did not start. Ensure the application is installed correctly.");
+            }
+
+            AssignProcessToJobObject(job, uiProcess.Handle);
+
+            uiProcess.WaitForExit();
         }
         catch
         {
-            // Clean up temp file on failure (the exe deletes it on success)
-            if (tempFile != null && File.Exists(tempFile))
+            if (File.Exists(tempFile))
             {
                 try
                 {
@@ -85,6 +130,47 @@ public static partial class SpreadsheetCompare
         }
     }
 
+    static HashSet<int> GetSpreadsheetComparePids()
+    {
+        var processes = Process.GetProcessesByName("SPREADSHEETCOMPARE");
+        var pids = processes.Select(p => p.Id).ToHashSet();
+        foreach (var p in processes)
+        {
+            p.Dispose();
+        }
+
+        return pids;
+    }
+
+    static Process? WaitForProcess(HashSet<int> existingPids)
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var processes = Process.GetProcessesByName("SPREADSHEETCOMPARE");
+            Process? result = null;
+            foreach (var p in processes)
+            {
+                if (result == null && !existingPids.Contains(p.Id))
+                {
+                    result = p;
+                }
+                else
+                {
+                    p.Dispose();
+                }
+            }
+
+            if (result != null)
+            {
+                return result;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        return null;
+    }
+
     static IntPtr CreateJobToKillChildProcessesWhenThisProcessExits()
     {
         var job = CreateJobObject(IntPtr.Zero, null);
@@ -99,46 +185,8 @@ public static partial class SpreadsheetCompare
         return job;
     }
 
-    static void WaitForJobToEmpty(IntPtr job)
-    {
-        while (true)
-        {
-            var info = new JOBOBJECT_BASIC_ACCOUNTING_INFORMATION();
-            if (!QueryInformationJobObject(
-                    job,
-                    jobObjectBasicAccountingInformation,
-                    ref info,
-                    (uint)Marshal.SizeOf(info),
-                    out _))
-            {
-                break;
-            }
-
-            if (info.ActiveProcesses == 0)
-            {
-                break;
-            }
-
-            Thread.Sleep(500);
-        }
-    }
-
     const uint jobObjectLimitKillOnJobClose = 0x2000;
     const int jobObjectExtendedLimitInformation = 9;
-    const int jobObjectBasicAccountingInformation = 1;
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
-    {
-        public long TotalUserTime;
-        public long TotalKernelTime;
-        public long ThisPeriodTotalUserTime;
-        public long ThisPeriodTotalKernelTime;
-        public uint TotalPageFaultCount;
-        public uint TotalProcesses;
-        public uint ActiveProcesses;
-        public uint TotalTerminatedProcesses;
-    }
 
     [StructLayout(LayoutKind.Sequential)]
     struct JOBOBJECT_BASIC_LIMIT_INFORMATION
@@ -186,10 +234,6 @@ public static partial class SpreadsheetCompare
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
-
-    [LibraryImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool QueryInformationJobObject(IntPtr hJob, int jobObjectInfoClass, ref JOBOBJECT_BASIC_ACCOUNTING_INFORMATION lpJobObjectInfo, uint cbJobObjectInfoLength, out uint lpReturnLength);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

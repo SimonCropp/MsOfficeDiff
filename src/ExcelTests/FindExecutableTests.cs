@@ -1,3 +1,4 @@
+// ReSharper disable UnusedVariable
 public class FindExecutableTests
 {
     [Test]
