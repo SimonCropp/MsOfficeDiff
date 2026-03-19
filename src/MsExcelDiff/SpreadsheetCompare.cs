@@ -77,77 +77,10 @@ public static partial class SpreadsheetCompare
 
         try
         {
-            // Click-to-Run Office installs require launching via AppVLP.exe (the App-V
-            // virtualization layer). SPREADSHEETCOMPARE.EXE crashes if launched directly.
-            var appVlp = FindAppVlp();
-            ProcessStartInfo startInfo;
+            using var process = LaunchProcess(exe, tempFile);
 
-            if (appVlp == null)
-            {
-                // Non-Click-to-Run install: launch directly
-                startInfo = new()
-                {
-                    FileName = exe,
-                    Arguments = tempFile,
-                    UseShellExecute = true
-                };
-            }
-            else
-            {
-                startInfo = new()
-                {
-                    FileName = appVlp,
-                    Arguments = $"\"{exe}\" {tempFile}",
-                    UseShellExecute = false
-                };
-            }
-
-            // Serialize the snapshot-launch-identify sequence across concurrent
-            // diffexcel instances. Without this, concurrent instances snapshot the
-            // same PID set, race to claim the same SPREADSHEETCOMPARE process, and
-            // leave others orphaned (not in any job object, so they survive when
-            // diffexcel is killed).
-            Process? uiProcess;
-            using (var mutex = new Mutex(false, @"Global\MsExcelDiff_Launch"))
-            {
-                mutex.WaitOne();
-                try
-                {
-                    var existingPids = GetSpreadsheetComparePids();
-
-                    using var launcher = Process.Start(startInfo)
-                                         ?? throw new("Failed to start Spreadsheet Compare process");
-
-                    // AppVLP.exe is a launcher that exits after starting the real process.
-                    // Find the actual SPREADSHEETCOMPARE process and wait on it.
-                    launcher.WaitForExit();
-
-                    uiProcess = WaitForProcess(existingPids);
-
-                    if (uiProcess != null)
-                    {
-                        JobObject.AssignProcess(job, uiProcess.Handle);
-                    }
-                }
-                finally
-                {
-                    mutex.ReleaseMutex();
-                }
-            }
-
-            if (uiProcess == null)
-            {
-                throw new("Spreadsheet Compare did not start. Ensure the application is installed correctly.");
-            }
-
-            try
-            {
-                uiProcess.WaitForExit();
-            }
-            finally
-            {
-                uiProcess.Dispose();
-            }
+            JobObject.AssignProcess(job, process.Handle);
+            process.WaitForExit();
         }
         catch when (TempFiles.TryDelete(tempFile))
         {
@@ -160,6 +93,60 @@ public static partial class SpreadsheetCompare
         }
     }
 
+    static Process LaunchProcess(string exe, string tempFile)
+    {
+        // Click-to-Run Office installs require launching via AppVLP.exe (the App-V
+        // virtualization layer). SPREADSHEETCOMPARE.EXE crashes if launched directly.
+        var appVlp = FindAppVlp();
+
+        if (appVlp == null)
+        {
+            return LaunchDirect(exe, tempFile);
+        }
+
+        return LaunchViaAppVlp(appVlp, exe, tempFile);
+    }
+
+    static Process LaunchDirect(string exe, string tempFile) =>
+        Process.Start(
+            new ProcessStartInfo(exe, tempFile)
+            {
+                UseShellExecute = true
+            })
+        ?? throw new("Failed to start Spreadsheet Compare process");
+
+    static Process LaunchViaAppVlp(string appVlp, string exe, string tempFile)
+    {
+        // Serialize the snapshot-launch-identify sequence across concurrent
+        // diffexcel instances. Without this, concurrent instances snapshot the
+        // same PID set, race to claim the same SPREADSHEETCOMPARE process, and
+        // leave others orphaned (not in any job object, so they survive when
+        // diffexcel is killed).
+        using var mutex = new Mutex(false, @"Global\MsExcelDiff_Launch");
+        mutex.WaitOne();
+        try
+        {
+            var existingPids = GetSpreadsheetComparePids();
+
+            using var launcher = Process.Start(
+                                     new ProcessStartInfo(appVlp, $"\"{exe}\" {tempFile}")
+                                     {
+                                         UseShellExecute = false
+                                     })
+                                 ?? throw new("Failed to start AppVLP process");
+
+            // AppVLP.exe is a launcher that exits after starting the real process.
+            // Find the actual SPREADSHEETCOMPARE process and wait on it.
+            launcher.WaitForExit();
+
+            return WaitForProcess(existingPids)
+                   ?? throw new("Spreadsheet Compare did not start. Ensure the application is installed correctly.");
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
 
     static HashSet<int> GetSpreadsheetComparePids() =>
         GetProcessPids("SPREADSHEETCOMPARE");
