@@ -71,8 +71,7 @@ public static partial class SpreadsheetCompare
 
         // SPREADSHEETCOMPARE.EXE takes a single argument: a path to a file
         // containing the two workbook paths (one per line)
-        var tempFile = Path.GetTempFileName();
-        File.WriteAllText(tempFile, $"{path1}{Environment.NewLine}{path2}");
+        var tempFile = TempFiles.Create($"{path1}{Environment.NewLine}{path2}");
 
         var job = JobObject.Create();
 
@@ -150,7 +149,7 @@ public static partial class SpreadsheetCompare
                 uiProcess.Dispose();
             }
         }
-        catch when (TryDeleteTempFile(tempFile))
+        catch when (TempFiles.TryDelete(tempFile))
         {
             // unreachable: TryDeleteTempFile always returns false
             throw;
@@ -161,22 +160,6 @@ public static partial class SpreadsheetCompare
         }
     }
 
-    static bool TryDeleteTempFile(string tempFile)
-    {
-        if (File.Exists(tempFile))
-        {
-            try
-            {
-                File.Delete(tempFile);
-            }
-            catch
-            {
-                // Best effort cleanup
-            }
-        }
-
-        return false;
-    }
 
     static HashSet<int> GetSpreadsheetComparePids() =>
         GetProcessPids("SPREADSHEETCOMPARE");
