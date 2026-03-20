@@ -16,22 +16,20 @@ A .NET tool that compares two Word documents side by side using Microsoft Word's
 
  * Windows
  * .NET 10.0 or later
- * Microsoft Word installed (for MsWordDiff)
- * Microsoft Office Professional Plus / Microsoft 365 Apps for Enterprise (for MsExcelDiff — Spreadsheet Compare is only included in these editions)
+
+
+# MsWordDiff
+
+Requires Microsoft Word installed (for MsWordDiff)
 
 
 ## Installation
 
 ```
 dotnet tool install -g MsWordDiff
-dotnet tool install -g MsExcelDiff
 ```
 
- * https://nuget.org/packages/MsWordDiff/
- * https://nuget.org/packages/MsExcelDiff/
-
-
-# MsWordDiff
+Nuget: https://nuget.org/packages/MsWordDiff/
 
 
 ## Usage
@@ -167,6 +165,17 @@ The tool uses COM automation to:
 
 
 # MsExcelDiff
+
+Requires Microsoft Office Professional Plus / Microsoft 365 Apps for Enterprise as Spreadsheet Compare is only included in these editions
+
+
+## Installation
+
+```
+dotnet tool install -g MsExcelDiff
+```
+
+Nuget: https://nuget.org/packages/MsExcelDiff/
 
 
 ## Usage
