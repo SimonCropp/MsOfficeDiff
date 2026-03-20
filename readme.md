@@ -166,7 +166,7 @@ The tool uses COM automation to:
 
 # MsExcelDiff
 
-Requires Microsoft Office Professional Plus / Microsoft 365 Apps for Enterprise as Spreadsheet Compare is only included in these editions
+Requires Microsoft Office Professional Plus / Microsoft 365 Apps for Enterprise as [Spreadsheet Compare](https://support.microsoft.com/en-us/office/compare-two-versions-of-a-workbook-by-using-spreadsheet-compare-0e1627fd-ce14-4c33-9ab1-8ea82c6a5a7e) is only included in these editions
 
 
 ## Installation
