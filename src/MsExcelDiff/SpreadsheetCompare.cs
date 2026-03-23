@@ -222,11 +222,154 @@ public static partial class SpreadsheetCompare
                 // SW_MAXIMIZE = 3
                 ShowWindow(process.MainWindowHandle, 3);
                 SetForegroundWindow(process.MainWindowHandle);
+
+                // Wait briefly for the window to finish layout after maximize
+                await Task.Delay(500);
+                CenterVerticalSplit(process.MainWindowHandle);
                 return;
             }
 
             await Task.Delay(100);
         }
+    }
+
+    static void CenterVerticalSplit(IntPtr mainWindow)
+    {
+        // Collect all child windows with their parent, class name, and rect
+        var children = new List<(IntPtr Handle, IntPtr Parent, string ClassName, RECT Rect)>();
+        EnumChildWindows(mainWindow, (hwnd, _) =>
+        {
+            GetWindowRect(hwnd, out var rect);
+            var className = GetWindowClassName(hwnd);
+            children.Add((hwnd, GetParent(hwnd), className, rect));
+            return true;
+        }, IntPtr.Zero);
+
+        // Log child window hierarchy for diagnostics
+        Log.Information("CenterVerticalSplit: found {Count} child windows", children.Count);
+        foreach (var child in children)
+        {
+            var w = child.Rect.Right - child.Rect.Left;
+            var h = child.Rect.Bottom - child.Rect.Top;
+            Log.Information(
+                "  hwnd={Handle} parent={Parent} class={ClassName} pos=({Left},{Top}) size={Width}x{Height}",
+                child.Handle, child.Parent, child.ClassName,
+                child.Rect.Left, child.Rect.Top, w, h);
+        }
+
+        // Find the vertical splitter: look for pairs of side-by-side siblings
+        // with similar height that together span most of their parent's width.
+        // Pick the pair with the largest combined area.
+        var bestArea = 0;
+        var bestLeftRect = default(RECT);
+        var bestRightRect = default(RECT);
+        var bestParent = IntPtr.Zero;
+
+        foreach (var group in children.GroupBy(c => c.Parent))
+        {
+            var siblings = group.ToList();
+
+            for (var i = 0; i < siblings.Count; i++)
+            {
+                for (var j = i + 1; j < siblings.Count; j++)
+                {
+                    var a = siblings[i];
+                    var b = siblings[j];
+                    var heightA = a.Rect.Bottom - a.Rect.Top;
+                    var heightB = b.Rect.Bottom - b.Rect.Top;
+
+                    var widthA = a.Rect.Right - a.Rect.Left;
+                    var widthB = b.Rect.Right - b.Rect.Left;
+
+                    if (heightA < 100 || heightB < 100 ||
+                        widthA <= 0 || widthB <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (Math.Abs(heightA - heightB) > 20 ||
+                        Math.Abs(a.Rect.Top - b.Rect.Top) > 20)
+                    {
+                        continue;
+                    }
+
+                    GetClientRect(group.Key, out var parentClient);
+                    var totalSpan = Math.Max(a.Rect.Right, b.Rect.Right) - Math.Min(a.Rect.Left, b.Rect.Left);
+                    if (totalSpan < parentClient.Right * 0.8)
+                    {
+                        continue;
+                    }
+
+                    var area = (a.Rect.Right - a.Rect.Left) * heightA +
+                               (b.Rect.Right - b.Rect.Left) * heightB;
+                    if (area <= bestArea)
+                    {
+                        continue;
+                    }
+
+                    bestArea = area;
+                    bestParent = group.Key;
+                    if (a.Rect.Left <= b.Rect.Left)
+                    {
+                        bestLeftRect = a.Rect;
+                        bestRightRect = b.Rect;
+                    }
+                    else
+                    {
+                        bestLeftRect = b.Rect;
+                        bestRightRect = a.Rect;
+                    }
+                }
+            }
+        }
+
+        if (bestArea == 0)
+        {
+            Log.Information("CenterVerticalSplit: no matching split panel pair found");
+            return;
+        }
+
+        // The splitter bar sits in the gap between the two panels.
+        // Convert splitter screen position to parent client coordinates and
+        // send mouse messages directly to the parent (SplitContainer) window.
+        var splitterScreenX = (bestLeftRect.Right + bestRightRect.Left) / 2;
+        var splitterScreenY = (bestLeftRect.Top + bestLeftRect.Bottom) / 2;
+
+        var splitterPoint = new POINT { X = splitterScreenX, Y = splitterScreenY };
+        ScreenToClient(bestParent, ref splitterPoint);
+
+        GetClientRect(bestParent, out var client);
+        var targetClientX = client.Right / 2;
+
+        Log.Information(
+            "CenterVerticalSplit: sending drag from client ({FromX},{FromY}) to ({ToX},{ToY})",
+            splitterPoint.X, splitterPoint.Y, targetClientX, splitterPoint.Y);
+
+        var downLParam = MakeLParam(splitterPoint.X, splitterPoint.Y);
+        var moveLParam = MakeLParam(targetClientX, splitterPoint.Y);
+
+        // WM_LBUTTONDOWN = 0x0201, WM_MOUSEMOVE = 0x0200, WM_LBUTTONUP = 0x0202
+        // MK_LBUTTON = 0x0001
+        SendMessage(bestParent, 0x0201, (IntPtr)0x0001, downLParam);
+        SendMessage(bestParent, 0x0200, (IntPtr)0x0001, moveLParam);
+        SendMessage(bestParent, 0x0202, IntPtr.Zero, moveLParam);
+    }
+
+    static IntPtr MakeLParam(int x, int y) =>
+        (IntPtr)((y << 16) | (x & 0xFFFF));
+
+    delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct RECT
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct POINT
+    {
+        public int X, Y;
     }
 
     [LibraryImport("user32.dll")]
@@ -236,4 +379,37 @@ public static partial class SpreadsheetCompare
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetForegroundWindow(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr GetParent(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static partial IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    static string GetWindowClassName(IntPtr hWnd)
+    {
+        var buffer = new System.Text.StringBuilder(256);
+        GetClassName(hWnd, buffer, buffer.Capacity);
+        return buffer.ToString();
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
 }
