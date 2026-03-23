@@ -1,4 +1,4 @@
-public static class SpreadsheetCompare
+public static partial class SpreadsheetCompare
 {
     static readonly string[] programFolders =
     [
@@ -80,6 +80,7 @@ public static class SpreadsheetCompare
             using var process = await LaunchProcess(exe, tempFile);
 
             JobObject.AssignProcess(job, process.Handle);
+            await MaximizeWindow(process);
             await process.WaitForExitAsync();
         }
         catch when (TempFiles.TryDelete(tempFile))
@@ -210,4 +211,29 @@ public static class SpreadsheetCompare
         return null;
     }
 
+    static async Task MaximizeWindow(Process process)
+    {
+        // Wait for the main window to appear
+        for (var i = 0; i < 100; i++)
+        {
+            process.Refresh();
+            if (process.MainWindowHandle != IntPtr.Zero)
+            {
+                // SW_MAXIMIZE = 3
+                ShowWindow(process.MainWindowHandle, 3);
+                SetForegroundWindow(process.MainWindowHandle);
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(IntPtr hWnd);
 }
