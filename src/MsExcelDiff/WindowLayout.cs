@@ -14,6 +14,7 @@ static partial class WindowLayout
                 // ShowWindow is synchronous — WinForms processes WM_SIZE and
                 // lays out child controls before it returns, so no delay needed.
                 ShowWindow(process.MainWindowHandle, 3);
+                await Task.Delay(500);
                 CenterSplits(process.MainWindowHandle);
                 return;
             }
@@ -36,12 +37,12 @@ static partial class WindowLayout
             },
             IntPtr.Zero);
 
-        Log.Information("CenterSplits: found {Count} child windows", children.Count);
+        Log.Debug("CenterSplits: found {Count} child windows", children.Count);
         foreach (var child in children)
         {
             var w = child.Rect.Right - child.Rect.Left;
             var h = child.Rect.Bottom - child.Rect.Top;
-            Log.Information(
+            Log.Debug(
                 "  hwnd={Handle} parent={Parent} class={ClassName} pos=({Left},{Top}) size={Width}x{Height}",
                 child.Handle, child.Parent, child.ClassName,
                 child.Rect.Left, child.Rect.Top, w, h);
@@ -145,7 +146,7 @@ static partial class WindowLayout
 
         if (matches.Count == 0)
         {
-            Log.Information("CenterSplit({Orientation}): no matching pairs found", orientation);
+            Log.Debug("CenterSplit({Orientation}): no matching pairs found", orientation);
             return;
         }
 
@@ -178,7 +179,7 @@ static partial class WindowLayout
                 toClient.Y = client.Bottom / 2;
             }
 
-            Log.Information(
+            Log.Debug(
                 "CenterSplit({Orientation}): PostMessage drag client ({FromX},{FromY}) to ({ToX},{ToY})",
                 orientation, fromScreen.X, fromScreen.Y, toClient.X, toClient.Y);
 
