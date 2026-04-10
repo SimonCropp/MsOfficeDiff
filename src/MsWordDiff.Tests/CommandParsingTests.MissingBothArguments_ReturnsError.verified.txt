@@ -3,7 +3,7 @@
 
 USAGE
   diffword <path1> <path2> [options]
-  diffword [command] [...]
+  diffword [command] ...
 
 DESCRIPTION
   Compare two Word documents side by side using Microsoft Word
@@ -14,17 +14,17 @@ PARAMETERS
 
 OPTIONS
   --quiet           Hide source documents in the comparison view. Default can be set via 'set-quiet' command 
-  -h|--help         Shows help text. 
-  --version         Shows version information. 
+  -h|--help         Shows help text. Default: <false>.
+  --version         Shows version information. Default: <false>.
 
 COMMANDS
   set-quiet         Set the default value for the Quiet option. Settings are saved in the user configuration file. 
   settings          Display the settings 
 
-You can run `diffword [command] --help` to show help on a specific command.
+You can run "diffword [command] --help" to show help for a specific command.
 ,
   Error:
 Missing required parameter(s):
-<path1> <path2>
+<path1>, <path2>
 
 }

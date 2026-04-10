@@ -3,7 +3,7 @@
 
 USAGE
   diffexcel <path1> <path2> [options]
-  diffexcel [command] [...]
+  diffexcel [command] ...
 
 DESCRIPTION
   Compare two Excel workbooks using Microsoft Spreadsheet Compare
@@ -13,17 +13,17 @@ PARAMETERS
 * path2             Path to the second Excel workbook 
 
 OPTIONS
-  -h|--help         Shows help text. 
-  --version         Shows version information. 
+  -h|--help         Shows help text. Default: <false>.
+  --version         Shows version information. Default: <false>.
 
 COMMANDS
   set-path          Set the path to SPREADSHEETCOMPARE.EXE. Settings are saved in the user configuration file. 
   settings          Display the settings 
 
-You can run `diffexcel [command] --help` to show help on a specific command.
+You can run "diffexcel [command] --help" to show help for a specific command.
 ,
   Error:
 Missing required parameter(s):
-<path1> <path2>
+<path1>, <path2>
 
 }
