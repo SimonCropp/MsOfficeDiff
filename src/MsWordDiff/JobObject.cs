@@ -14,8 +14,18 @@ static partial class JobObject
         return job;
     }
 
-    public static void AssignProcess(IntPtr job, IntPtr processHandle) =>
-        AssignProcessToJobObject(job, processHandle);
+    // Throws on failure instead of silently returning false. A failed assignment
+    // means the process is not in our job, so KILL_ON_JOB_CLOSE will not terminate
+    // it when diffword exits or is hard-killed (e.g. by DiffEngineTray on "accept"),
+    // leaving a zombie WINWORD.EXE behind. Surfacing the failure is preferable to
+    // a silent leak.
+    public static void AssignProcess(IntPtr job, IntPtr processHandle)
+    {
+        if (!AssignProcessToJobObject(job, processHandle))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "AssignProcessToJobObject failed");
+        }
+    }
 
     public static void Close(IntPtr job) =>
         CloseHandle(job);

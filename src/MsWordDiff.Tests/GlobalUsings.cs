@@ -1,3 +1,4 @@
+global using System.ComponentModel;
 global using System.Runtime.InteropServices;
 global using CliFx;
 global using CliFx.Infrastructure;
