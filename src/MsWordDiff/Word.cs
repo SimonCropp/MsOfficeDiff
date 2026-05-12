@@ -10,18 +10,19 @@ public static partial class Word
 
         var job = JobObject.Create();
 
-        // Snapshot existing Word PIDs before creating the COM instance so we can
-        // identify the new WINWORD.EXE process immediately after creation and assign
-        // it to the Job Object before any document operations that could throw.
-        // Previously, assignment happened after opening the first document, leaving
-        // a window where exceptions would orphan the Word process.
+        // Snapshot existing Word PIDs before creating the COM instance, then poll
+        // for the newly-spawned WINWORD.EXE so we can put it in the Job Object before
+        // any operation that can throw. This is critical for the DiffEngineTray
+        // "accept" flow: tray hard-kills diffword.exe (Process.Kill), which only
+        // reaps WINWORD via KILL_ON_JOB_CLOSE if WINWORD was actually assigned to
+        // our job. A short retry loop is needed because Process.GetProcessesByName
+        // can lag the Activator return — particularly under Click-to-Run / AppV
+        // where Word spawns through a launcher chain.
         var existingPids = GetWordProcessIds();
         dynamic word = Activator.CreateInstance(wordType)!;
-        var process = FindNewWordProcess(existingPids);
-        if (process != null)
-        {
-            JobObject.AssignProcess(job, process.Handle);
-        }
+        var process = WaitForNewWordProcess(existingPids, TimeSpan.FromSeconds(5))
+            ?? throw new("Failed to locate the WINWORD.EXE process spawned by COM activation");
+        JobObject.AssignProcess(job, process.Handle);
 
         try
         {
@@ -32,15 +33,6 @@ public static partial class Word
             word.Options.SaveInterval = 0;
 
             var doc1 = Open(word, path1);
-
-            // Fallback: if process snapshot didn't find the new process, get it via window handle
-            if (process == null)
-            {
-                var hwnd = (IntPtr)word.ActiveWindow.Hwnd;
-                GetWindowThreadProcessId(hwnd, out var processId);
-                process = Process.GetProcessById(processId);
-                JobObject.AssignProcess(job, process.Handle);
-            }
 
             var doc2 = Open(word, path2);
 
@@ -161,13 +153,15 @@ public static partial class Word
     static void RestoreRibbon(Type wordType)
     {
         var job = JobObject.Create();
+        // Same poll-and-assign-before-throwables pattern as Launch. Previously this
+        // path had no fallback when FindNewWordProcess returned null, so a failed
+        // Quit() left the process orphaned (process was null → QuitAndKill couldn't
+        // force-kill, and the job had nothing assigned to reap).
         var existingPids = GetWordProcessIds();
         dynamic word = Activator.CreateInstance(wordType)!;
-        var process = FindNewWordProcess(existingPids);
-        if (process != null)
-        {
-            JobObject.AssignProcess(job, process.Handle);
-        }
+        var process = WaitForNewWordProcess(existingPids, TimeSpan.FromSeconds(5))
+            ?? throw new("Failed to locate the WINWORD.EXE process spawned by COM activation");
+        JobObject.AssignProcess(job, process.Handle);
 
         try
         {
@@ -225,6 +219,31 @@ public static partial class Word
         return pids;
     }
 
+    // Polls FindNewWordProcess until a new WINWORD appears or the timeout elapses.
+    // Process.GetProcessesByName can briefly lag the Activator.CreateInstance return
+    // (especially under Click-to-Run / AppV), so a single snapshot at t=0 can miss
+    // the spawn. Without this, the new WINWORD is never assigned to the Job Object
+    // and survives diffword.exe being killed (e.g. by DiffEngineTray on "accept").
+    internal static Process? WaitForNewWordProcess(HashSet<int> existingPids, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (true)
+        {
+            var found = FindNewWordProcess(existingPids);
+            if (found != null)
+            {
+                return found;
+            }
+
+            if (sw.Elapsed > timeout)
+            {
+                return null;
+            }
+
+            System.Threading.Thread.Sleep(50);
+        }
+    }
+
     // Finds the WINWORD process that appeared after the snapshot was taken.
     // If multiple new processes appear (rare race condition), keeps the last one found.
     internal static Process? FindNewWordProcess(HashSet<int> existingPids)
@@ -244,9 +263,6 @@ public static partial class Word
         }
         return found;
     }
-
-    [LibraryImport("user32.dll")]
-    internal static partial uint GetWindowThreadProcessId(IntPtr hWnd, out int processId);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
