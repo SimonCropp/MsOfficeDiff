@@ -22,13 +22,14 @@ public class ProcessCleanupTests
     [Test]
     public void QuitAndKill_WithExitedProcess_DoesNotThrow()
     {
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = "cmd.exe",
-            Arguments = "/c exit 0",
-            CreateNoWindow = true,
-            UseShellExecute = false
-        })!;
+        var process = Process.Start(
+            new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c exit 0",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            })!;
         process.WaitForExit();
 
         Word.QuitAndKill((dynamic)new object(), process);
@@ -38,13 +39,14 @@ public class ProcessCleanupTests
     [Test]
     public async Task QuitAndKill_WithRunningProcess_KillsProcess()
     {
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = "ping",
-            Arguments = "-n 60 127.0.0.1",
-            CreateNoWindow = true,
-            UseShellExecute = false
-        })!;
+        var process = Process.Start(
+            new ProcessStartInfo
+            {
+                FileName = "ping",
+                Arguments = "-n 60 127.0.0.1",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            })!;
 
         await Assert.That(process.HasExited).IsFalse();
 
@@ -55,6 +57,26 @@ public class ProcessCleanupTests
             .Because("QuitAndKill should kill running processes");
         process.Dispose();
     }
+
+    [Test]
+    public async Task WaitForNewWordProcess_WhenNoNewProcesses_ReturnsNullAfterTimeout()
+    {
+        var existingPids = Word.GetWordProcessIds();
+        var watch = Stopwatch.StartNew();
+        var result = Word.WaitForNewWordProcess(existingPids, TimeSpan.FromMilliseconds(200));
+        watch.Stop();
+
+        await Assert.That(result).IsNull();
+        await Assert.That(watch.Elapsed).IsGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(200))
+            .Because("Should poll for at least the timeout before giving up");
+        await Assert.That(watch.Elapsed).IsLessThan(TimeSpan.FromSeconds(2))
+            .Because("Should not poll significantly past the timeout");
+    }
+
+    [Test]
+    public async Task AssignProcess_WithInvalidHandles_ThrowsWin32Exception() =>
+        await Assert.That(() => JobObject.AssignProcess(IntPtr.Zero, IntPtr.Zero))
+            .Throws<Win32Exception>();
 
     [Test]
     [Explicit]

@@ -63,7 +63,7 @@ public static partial class Word
         finally
         {
             Marshal.ReleaseComObject(word);
-            process?.Dispose();
+            process.Dispose();
             JobObject.Close(job);
         }
 
@@ -186,7 +186,7 @@ public static partial class Word
         finally
         {
             Marshal.ReleaseComObject(word);
-            process?.Dispose();
+            process.Dispose();
             JobObject.Close(job);
         }
     }
@@ -226,7 +226,7 @@ public static partial class Word
     // and survives diffword.exe being killed (e.g. by DiffEngineTray on "accept").
     internal static Process? WaitForNewWordProcess(HashSet<int> existingPids, TimeSpan timeout)
     {
-        var sw = Stopwatch.StartNew();
+        var watch = Stopwatch.StartNew();
         while (true)
         {
             var found = FindNewWordProcess(existingPids);
@@ -235,12 +235,12 @@ public static partial class Word
                 return found;
             }
 
-            if (sw.Elapsed > timeout)
+            if (watch.Elapsed > timeout)
             {
                 return null;
             }
 
-            System.Threading.Thread.Sleep(50);
+            Thread.Sleep(50);
         }
     }
 
